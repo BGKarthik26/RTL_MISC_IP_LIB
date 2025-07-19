@@ -1,21 +1,22 @@
 `timescale 1ns/1ps
 
 module fifomem #(parameter DATA_WIDTH = 0, ADDRESS_WIDTH = 0, DEPTH= 0 , RESET_MEM = 0, PIPE_WRITE  = 0, PIPE_READ = 0,STICKY_ERROR=0,SOFT_RESET=0)
-				(output   logic       [DATA_WIDTH-1 :0]    rdata     ,
-              	 input    logic          [DATA_WIDTH-1 :0]    wdata     ,
-				 input    logic          [ADDRESS_WIDTH  :0]    waddr     ,
-                 input    logic          [ADDRESS_WIDTH  :0]    raddr     ,
-				 input    logic                             wclk      ,
+		(
+		 output   logic [DATA_WIDTH-1 :0]   rdata     ,
+              	 input    logic [DATA_WIDTH-1 :0]   wdata     ,
+		 input    logic [ADDRESS_WIDTH  :0] waddr     ,
+                 input    logic [ADDRESS_WIDTH  :0] raddr     ,
+		 input    logic                             wclk      ,
                  input    logic                             sw_rst   ,  //soft reset   // mem_rst changed to sw_rst
                  input    logic                             rclk      ,
                  input    logic                             wr_en     ,
                  input    logic                             rd_en     ,
                  input    logic                             wfull     ,  
-                 input    logic                             hwrst     , //hard reset
+                 input    logic                             hw_rst_n     , //hard reset
                  input    logic                             empty     ,
 		 input    logic                             mem_rst   ,  //memory reset
-                 input logic                                wr_overflow,  //Overflow
-                 input logic                                rd_underflow   //Underflow
+                 input    logic                             wr_overflow,  //Overflow
+                 input    logic                             rd_underflow   //Underflow
 				 );
 
 
@@ -29,9 +30,9 @@ logic wr_en_r, rd_en_r;
 //--------------------------------LOGIC TO WRITE DATA INTO FIFO------------------------------------------------------------//
 
 
-always_ff @(posedge wclk or negedge hwrst)
+always_ff @(posedge wclk or negedge hw_rst_n)
 begin
-    if(!hwrst)     
+    if(!hw_rst_n)     
     begin
         wdata_r <= {DATA_WIDTH{1'b0}};
     end
@@ -49,9 +50,9 @@ end
 
 
 
-always_ff@(posedge wclk or negedge hwrst)
+always_ff@(posedge wclk or negedge hw_rst_n)
 begin
-	if(!hwrst)
+	if(!hw_rst_n)
 	begin
 		wr_en_r <= 1'b0;
 	end
@@ -88,9 +89,9 @@ end
   
 //----------------------------------LOGIC TO READ DATA FROM FIFO------------------------------------------------//
 
-always_ff@(posedge rclk or negedge hwrst )
+always_ff@(posedge rclk or negedge hw_rst_n )
 begin
-    if(!hwrst)
+    if(!hw_rst_n)
     begin
         rd_en_r <= 1'b0;
     end
@@ -103,9 +104,9 @@ begin
 end
 
 
-always_ff@(posedge rclk or negedge hwrst )
+always_ff@(posedge rclk or negedge hw_rst_n )
 begin
-    if(!hwrst)
+    if(!hw_rst_n)
     begin
         rdata_r <= {DATA_WIDTH{1'b0}};
         //rdata   <= {DATA_WIDTH{1'b0}};

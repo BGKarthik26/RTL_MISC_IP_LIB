@@ -47,11 +47,11 @@ input   logic                               sw_rst              ,
 input   logic     [DATA_WIDTH-1 :0]         wdata               ,
 input   logic                               write_enable        ,   
 input   logic                               wclk                , 
-input   logic                               hw_rst              ,
+input   logic                               hw_rst_n              ,
 input   logic                               read_enable         ,   
 input   logic                               rclk                ,               
-input   logic     [4:0]                     afull_value         ,
-input   logic     [4:0]                     aempty_value        ,
+input   logic     [ADDRESS_WIDTH-1:0]       afull_value         ,
+input   logic     [ADDRESS_WIDTH-1:0]       aempty_value        ,
 input   logic                               mem_rst
  
  );
@@ -72,6 +72,9 @@ logic write_mem_en, we_r ;
 assign overflow = wr_overflow_wire;
 assign underflow = rd_underflow_wire;
 
+assign write_mem_en = write_enable;
+
+/*
 always_comb
 begin
     if(STICKY_ERROR==1 )
@@ -83,10 +86,12 @@ begin
         write_mem_en =write_enable;// 
     end
 end
+*/
 
-always @(posedge wclk or negedge hw_rst)
+
+always @(posedge wclk or negedge hw_rst_n)
 begin
-	if(!hw_rst)
+	if(!hw_rst_n)
 	begin
 		we_r <= 1'b0;
 	end
@@ -125,9 +130,9 @@ r2w_sync
 (    
 .sync_out   (wq2_rptr       )   ,
 .din        (rptr           )   ,
-.clk        (wclk    )   ,
-.h_rst      (hw_rst         )   ,
-.s_rst      (sw_rst         )
+.clk        (wclk           )   ,
+.hw_rst_n   (hw_rst_n       )   ,
+.sw_rst     (sw_rst         )
                                                    
  );
 
@@ -143,9 +148,9 @@ w2r_sync
 (    
 .sync_out   (rq2_wptr   )   ,
 .din        (wptr       )   ,
-.clk        (rclk )   ,
-.h_rst      (hw_rst     )   ,
-.s_rst      (sw_rst     )
+.clk        (rclk       )   ,
+.hw_rst_n   (hw_rst_n   )   ,
+.sw_rst     (sw_rst     )
 
  );
 
@@ -168,7 +173,7 @@ fifo_mem
 .empty      (rdempty            ),
 .sw_rst     (sw_rst             ),
 .rd_en      (read_enable        ),
-.hwrst      ( hw_rst            ),
+.hw_rst_n   ( hw_rst_n          ),
 .mem_rst    (mem_rst            ),
 .wr_overflow(wr_overflow_wire   ),
 .rd_underflow(rd_underflow_wire)										
@@ -187,13 +192,13 @@ rptr_empty1
 .rptr           (rptr               ),
 .rq2_wptr       (rq2_wptr           ),
 .rinc           (read_enable        ),
-.rclk           (rclk         ),
-.hw_rst         (hw_rst             ),
-.soft_rst       (sw_rst             ),
-//.a_empty        (rd_almost_empty    ),
-//.aempty_val     (aempty_value       ),
+.rclk           (rclk               ),
+.hw_rst_n       (hw_rst_n           ),
+.sw_rst         (sw_rst             ),
+//.a_empty      (rd_almost_empty    ),
+//.aempty_val   (aempty_value       ),
 .rd_count       (fifo_read_count    ),
-. rd_underflow  (rd_underflow_wire  ),
+.rd_underflow   (rd_underflow_wire  ),
 .winc           (write_mem_en       ),
 .mem_rst        (mem_rst            )
                                                     
@@ -206,14 +211,14 @@ wptr_full
 #(.ADDRESS_WIDTH(ADDRESS_WIDTH),.DEPTH(DEPTH),.SOFT_RESET(SOFT_RESET),.DATA_WIDTH(DATA_WIDTH),.STICKY_ERROR(STICKY_ERROR),.RESET_MEM(RESET_MEM), .PIPE_WRITE(PIPE_WRITE))	
 wptr_ful 
 (  
-.wfull         (wfull              ),
+.wfull          (wfull              ),
 .wptr           (wptr               ),
 .waddr          (waddr              ),
 .wq2_rptr       (wq2_rptr           ),
-.wclk           (wclk        ),
+.wclk           (wclk               ),
 .winc           (write_mem_en       ),
-.hw_rst          (hw_rst             ),
-.sw_wrst        (sw_rst             ),                                                    
+.hw_rst_n       (hw_rst_n           ),
+.sw_rst         (sw_rst             ),                                                    
 //.a_full         (wr_almost_ful      ),
 //.afull_vl       (afull_value        ),
 .wr_count       (fifo_write_count   ),
@@ -243,17 +248,17 @@ assign wr_level = (waddr == raddr) ? (wfull ? DEPTH : 0) :
 assign rd_level = DEPTH - wr_level;
 
 
-//assign a_full= (!hw_rst) ? 0 : (wr_level>= (( afull_value))?1'b1:1'b0);
-//assign a_empty= (!hw_rst) ? 0 : ((wr_level<= aempty_value) ?1'b1:1'b0);
-assign wr_almost_ful = (!hw_rst) ? 0 : ((wr_level >= afull_value) /*|| (wr_almost_ful)*/);
-assign rd_almost_empty = (!hw_rst) ? 0 : ((wr_level <= aempty_value) ? 1'b1 : 1'b0);
+//assign a_full= (!hw_rst_n) ? 0 : (wr_level>= (( afull_value))?1'b1:1'b0);
+//assign a_empty= (!hw_rst_n) ? 0 : ((wr_level<= aempty_value) ?1'b1:1'b0);
+assign wr_almost_ful = (!hw_rst_n) ? 0 : ((wr_level >= afull_value) /*|| (wr_almost_ful)*/);
+assign rd_almost_empty = (!hw_rst_n) ? 0 : ((wr_level <= aempty_value) ? 1'b1 : 1'b0);
 
 //-------------------------------------------Debug Message --------------------------------------------------------
 
 /*
 property debug_msg;
 @(posedge wclk)
-disable iff(!hw_rst && !overflow)
+disable iff(!hw_rst_n && !overflow)
  (overflow && DEBUG_ENABLE==1);
 
 endproperty
@@ -262,7 +267,7 @@ assert property(debug_msg)$info (" INFO : OVERFLOW ",$time);
 
 property debug_msg1;
 @(posedge wclk)
-disable iff(!hw_rst && !overflow)
+disable iff(!hw_rst_n && !overflow)
  (overflow && DEBUG_ENABLE==2);
 
 endproperty
@@ -270,7 +275,7 @@ assert property(debug_msg1)$warning (" Warning : OVERFLOW ",$time);
 
 property debug_msg2;
 @(posedge wclk)
-disable iff(!hw_rst && !overflow)
+disable iff(!hw_rst_n && !overflow)
  (overflow && DEBUG_ENABLE==3);
 
 endproperty
@@ -278,7 +283,7 @@ assert property(debug_msg2)$error (" ERROR : OVERFLOW ",$time);
 
 property debug_msg3;
 @(posedge wclk)
-disable iff(!hw_rst && !overflow)
+disable iff(!hw_rst_n && !overflow)
  (overflow && DEBUG_ENABLE==4);
 
 endproperty
@@ -288,7 +293,7 @@ assert property(debug_msg3)$fatal (" FATAL : OVERFLOW ",$time);
 
 property debug_underflow_msg1;
 @(posedge rclk)
-disable iff(!hw_rst && !underflow)
+disable iff(!hw_rst_n && !underflow)
  (underflow && DEBUG_ENABLE==1);
 
 endproperty
@@ -297,7 +302,7 @@ assert property(debug_underflow_msg1)$info (" INFO : UNDERFLOW ",$time);
 
 property debug_underflow_msg2;
 @(posedge rclk)
-disable iff(!hw_rst && !underflow)
+disable iff(!hw_rst_n && !underflow)
  (underflow && DEBUG_ENABLE==2);
 
 endproperty
@@ -305,7 +310,7 @@ assert property(debug_underflow_msg2)$warning (" Warning : UNDERFLOW ",$time);
 
 property debug_underflow_msg3;
 @(posedge rclk)
-disable iff(!hw_rst && !underflow)
+disable iff(!hw_rst_n && !underflow)
  (underflow && DEBUG_ENABLE==3);
 
 endproperty
@@ -313,7 +318,7 @@ assert property(debug_underflow_msg3)$error (" ERROR : UNDERFLOW ",$time);
 
 property debug_underflow_msg4;
 @(posedge rclk)
-disable iff(!hw_rst && !underflow)
+disable iff(!hw_rst_n && !underflow)
  (underflow && DEBUG_ENABLE==4);
 
 endproperty
@@ -324,7 +329,7 @@ assert property(debug_underflow_msg4)$fatal (" FATAL : UNDERFLOW ",$time);
 
 debug_overflow:
 
-assert property (@(posedge wclk) disable iff (hw_rst==1'b0) (overflow===1'b0))
+assert property (@(posedge wclk) disable iff (hw_rst_n==1'b0) (overflow===1'b0))
 else if (DEBUG_ENABLE==1) $info(" INFO : OVERFLOW ",$time);
 else if (DEBUG_ENABLE==2) $error(" ERROR : OVERFLOW ",$time);
 else if (DEBUG_ENABLE==3) $display(" WARNING : OVERFLOW ",$time);
@@ -332,7 +337,7 @@ else if (DEBUG_ENABLE==4) $display(" FATAL : OVERFLOW ",$time);
 
 debug_underflow:
 
-assert property (@(posedge rclk) disable iff (hw_rst==1'b0) (underflow===1'b0))
+assert property (@(posedge rclk) disable iff (hw_rst_n==1'b0) (underflow===1'b0))
 else if (DEBUG_ENABLE==1) $info(" INFO : UNDERFLOW ",$time);
 else if (DEBUG_ENABLE==2) $error(" ERROR : UNDERFLOW ",$time);
 else if (DEBUG_ENABLE==3) $display(" WARNING : UNDERFLOW ",$time);

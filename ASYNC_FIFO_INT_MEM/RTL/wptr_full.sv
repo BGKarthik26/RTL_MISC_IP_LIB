@@ -1,20 +1,21 @@
 `timescale 1ns/1ps
 
 module wptr_full #(parameter ADDRESS_WIDTH = 0, DEPTH= 0, SOFT_RESET = 0,DATA_WIDTH=0,STICKY_ERROR=0, RESET_MEM=0, PIPE_WRITE = 0)
-		( output logic                       wfull       ,
-          //output logic                           a_full      ,          
-		  output logic       [ADDRESS_WIDTH   :0]    waddr       ,
-		  output logic       [ADDRESS_WIDTH     :0]    wptr        ,
-          output logic       [ADDRESS_WIDTH:0]    wr_count    ,
-          output logic                           wr_overflow ,          
-		  input  logic       [ADDRESS_WIDTH     :0]    wq2_rptr    ,
-		  input  logic                           winc        ,
-          input  logic                           rinc        ,
-          input  logic                           wclk        ,
-          input  logic                           hw_rst       ,    //w_rst changed to hw_rst
-          input  logic                           sw_wrst     ,
-          //input  logic       [4:0]               afull_vl    ,
-	  input logic                            mem_rst
+		( 
+	  output logic                       wfull       ,
+          //output logic                     a_full      ,          
+	  output logic [ADDRESS_WIDTH :0]    waddr       ,
+	  output logic [ADDRESS_WIDTH :0]    wptr        ,
+          output logic [ADDRESS_WIDTH :0]    wr_count    ,
+          output logic                       wr_overflow ,          
+	  input  logic [ADDRESS_WIDTH :0]    wq2_rptr    ,
+	  input  logic                       winc        ,
+          input  logic                       rinc        ,
+          input  logic                       wclk        ,
+          input  logic                       hw_rst_n      ,    //w_rst changed to hw_rst_n
+          input  logic                       sw_rst     ,
+          //input  logic       [4:0]         afull_vl    ,
+	  input logic                        mem_rst
           
       );
 	
@@ -37,16 +38,16 @@ logic wr_enable;
 //............................................................................................................................//
 assign wr_enable = (PIPE_WRITE==0) ? 1'b1: 1'b0;
 
-always@(posedge wclk or negedge hw_rst)
+always@(posedge wclk or negedge hw_rst_n)
 begin
-if (!hw_rst)                 //hardware reset
+if (!hw_rst_n)                 //hardware reset
     begin 
         wptr <= {ADDRESS_WIDTH{1'b0}};
         wbin <= {ADDRESS_WIDTH{1'b0}};
 	wbin_reg <= {ADDRESS_WIDTH{1'b0}};
     end
     else 
-        if (sw_wrst && (SOFT_RESET ==2 || SOFT_RESET == 3) )//software reset
+        if (sw_rst && (SOFT_RESET ==2 || SOFT_RESET == 3) )//software reset
     begin 
         wptr <= {ADDRESS_WIDTH{1'b0}};
         wbin <= {ADDRESS_WIDTH{1'b0}};
@@ -78,15 +79,15 @@ assign wbin_nxt_r = (wbin_reg + (winc_r & ~wfull))    ;
 
 assign wgray_nxt= (PIPE_WRITE==0) ? ((wbin_nxt >> 1) ^ wbin_nxt) : ((wbin_nxt_r >> 1) ^ wbin_nxt_r) ;
 
-always @(posedge wclk or negedge hw_rst)
+always @(posedge wclk or negedge hw_rst_n)
 begin
-	if(!hw_rst)
+	if(!hw_rst_n)
 	begin
 		wgray_nxt_reg <= 0;
 		wq2_rptr_reg <= 0;
 		winc_r <=0;
 	end
-	else if (sw_wrst && (SOFT_RESET==2 || SOFT_RESET==3))
+	else if (sw_rst && (SOFT_RESET==2 || SOFT_RESET==3))
 	begin
 		wgray_nxt_reg <= 0;
 		wq2_rptr_reg <= 0;
@@ -103,19 +104,19 @@ end
 assign wfull_val= (wgray_nxt == {~wq2_rptr[ADDRESS_WIDTH:ADDRESS_WIDTH-1],wq2_rptr[ADDRESS_WIDTH-2 : 0]});
 //assign a_full   = (waddr == (DEPTH-1) - afull_vl);
 //assign a_full   =(waddr == (DEPTH - afull_vl));
-//assign a_full = (!hw_rst) ? 0 : (waddr >= afull_vl);
+//assign a_full = (!hw_rst_n) ? 0 : (waddr >= afull_vl);
 
 
 
 
-always_ff @( posedge wclk or negedge hw_rst)
+always_ff @( posedge wclk or negedge hw_rst_n)
 begin
-	if(!hw_rst)
+	if(!hw_rst_n)
 	begin
 		wfull <= 1'b0;
 	   	//wfull_reg <= 1'b0;
 	end
-    	else if (sw_wrst && (SOFT_RESET ==2 || SOFT_RESET ==3))
+    	else if (sw_rst && (SOFT_RESET ==2 || SOFT_RESET ==3))
     		begin 
 	    		wfull <= 1'b0;
 	    		//wfull_reg <= 1'b0;
@@ -131,8 +132,8 @@ assign wr_overflow_w  = (PIPE_WRITE==0) ? ((wfull   && winc ) ?    1'b1    :   1
 assign winc_switch = (PIPE_WRITE ==0) ? winc : winc_r;
 
 
-always_ff @(posedge wclk or negedge hw_rst) begin
-    if (!hw_rst) begin
+always_ff @(posedge wclk or negedge hw_rst_n) begin
+    if (!hw_rst_n) begin
         wr_overflow <= 0;
     end 
     else if (STICKY_ERROR==1) begin
@@ -152,14 +153,14 @@ end
 
 //-------------------------------------------------------------------------------------------------------------------//
 
-always_ff @(posedge wclk or negedge  hw_rst)
+always_ff @(posedge wclk or negedge  hw_rst_n)
 begin
-    if(!hw_rst)
+    if(!hw_rst_n)
     begin
         wr_count_r  <= {DATA_WIDTH{1'b0}} ;
     end
     else 
-        if (sw_wrst && (SOFT_RESET ==2 || SOFT_RESET == 3))
+        if (sw_rst && (SOFT_RESET ==2 || SOFT_RESET == 3))
     begin 
 	    wr_count_r  <= {DATA_WIDTH{1'b0}} ;
 	end
