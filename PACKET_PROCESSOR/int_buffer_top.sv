@@ -1,4 +1,4 @@
-//`timescale 1ns/1ps
+`timescale 1ns/1ps
 module int_buffer_top
               #(parameter DATA_WIDTH        = 32     , 
                           DEPTH             = 16384  , 
@@ -18,7 +18,6 @@ module int_buffer_top
             input  logic       [DATA_WIDTH-1:0]   wr_data              ,
 
             input  logic                          in_eop               ,
-            input  logic       [PCK_LEN-1:0]      count                ,
 
             input  logic                          rd_en                ,   //////  to read the data 
             output logic       [DATA_WIDTH-1:0]   rd_data_out          ,
@@ -38,7 +37,11 @@ module int_buffer_top
             output logic                          underflow            ,
 
             input  logic                          pck_drop             ,
-            input  logic       [PCK_LEN-1:0]      count_w       
+            input  logic       [PCK_LEN-1:0]      count_w              ,
+            input  logic                          invalid_1            ,
+            input  logic                          invalid_3            ,
+            input  logic                          invalid_4            ,        
+            input  logic                          invalid_5         
 
             );
 
@@ -47,6 +50,7 @@ module int_buffer_top
 logic [ADDR_WIDTH:0]    wr_ptr           ;
 logic [ADDR_WIDTH:0]    rd_ptr           ;
 
+logic [ADDR_WIDTH:0]    wr_addr_w           ;
 ////// to the use for almost empty and almost full 
 logic temp_empty                        ;
 logic temp_full                         ;
@@ -68,7 +72,7 @@ int_buffer_inst
                .int_buffer_sw_rstn  ( sw_rst        )   ,
                                                  
                .wr_en_i             ( wr_en         )   ,
-               .wr_addr             ( wr_ptr        )   ,
+               .wr_addr             ( wr_addr_w     )   ,
                .wr_data             ( wr_data       )   ,
                                                  
                .rd_en_i             ( rd_en         )   ,
@@ -124,10 +128,17 @@ begin
         begin
         wr_ptr        <= wr_ptr - count_w + 1'b1                 ;
         end
-
-    else if(pck_drop)
+    else if(pck_drop && invalid_1)
         begin
-        wr_ptr        <= wr_ptr - count_w                        ;
+        wr_ptr <= wr_ptr - count_w                               ;
+        end
+    else if(pck_drop && (invalid_4 || invalid_5))                                  //LOGIC 
+        begin
+        wr_ptr       <= wr_ptr - count_w                         ;
+        end
+    else if(pck_drop && !invalid_1)
+        begin
+        wr_ptr        <= (wr_ptr + 1'b1) - count_w                 ;
         end
 
     else if(wr_en && ~buffer_full)
@@ -137,6 +148,8 @@ begin
     end  
 
 end 
+
+assign wr_addr_w = pck_drop ? (wr_ptr - count_w) : wr_ptr    ;
 
 ////// assigning buffer full 
 assign buffer_full  = (({~wr_ptr[14],wr_ptr[ADDR_WIDTH-1:0]} == rd_ptr))                   ;
@@ -268,6 +281,10 @@ begin
         wr_lvl  <= {(ADDR_WIDTH+1){1'b0}}                                      ;
     end    
 
+    else if(pck_drop && invalid_3)
+        begin
+        wr_lvl <= wr_lvl - count_w + 1'b1                                      ;
+        end
     else if(pck_drop)
     begin
         wr_lvl <= wr_lvl - count_w                                             ;
